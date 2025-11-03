@@ -235,6 +235,34 @@ def calculate_totals():
         ]
     })
 
+@app.route('/remove_games', methods=['POST'])
+def remove_games():
+    """Remove selected games from history"""
+    data = request.json
+    game_ids = data.get('game_ids', [])
+    
+    if not game_ids:
+        return jsonify({'error': 'No games selected'}), 400
+    
+    try:
+        db = get_db()
+        cursor = db.cursor()
+        
+        # Delete selected games
+        placeholders = ','.join('?' * len(game_ids))
+        cursor.execute(f'DELETE FROM games WHERE id IN ({placeholders})', game_ids)
+        db.commit()
+        deleted_count = cursor.rowcount
+        db.close()
+        
+        return jsonify({
+            'success': True,
+            'deleted_count': deleted_count,
+            'message': f'Successfully removed {deleted_count} game(s) from history'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/players', methods=['GET'])
 def get_players():
     """Get all players"""

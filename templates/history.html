@@ -16,6 +16,9 @@
             <button id="calculate-totals-btn" class="btn btn-success" disabled>
                 Calculate Total Points for Selected Games
             </button>
+            <button id="remove-games-btn" class="btn btn-danger" disabled style="margin-top: 10px;">
+                🗑️ Remove Selected Games from History
+            </button>
         </div>
         
         <div id="totals-container" style="display: none; margin-bottom: 20px;">
@@ -78,14 +81,16 @@
 <script>
 const checkboxes = document.querySelectorAll('.game-checkbox');
 const calculateBtn = document.getElementById('calculate-totals-btn');
+const removeBtn = document.getElementById('remove-games-btn');
 
 checkboxes.forEach(checkbox => {
-    checkbox.addEventListener('change', updateCalculateButton);
+    checkbox.addEventListener('change', updateButtons);
 });
 
-function updateCalculateButton() {
+function updateButtons() {
     const selectedCount = document.querySelectorAll('.game-checkbox:checked').length;
     calculateBtn.disabled = selectedCount === 0;
+    removeBtn.disabled = selectedCount === 0;
 }
 
 calculateBtn.addEventListener('click', async () => {
@@ -114,6 +119,42 @@ calculateBtn.addEventListener('click', async () => {
         }
     } catch (error) {
         alert('Failed to calculate totals. Please try again.');
+    }
+});
+
+removeBtn.addEventListener('click', async () => {
+    const selectedGameIds = Array.from(document.querySelectorAll('.game-checkbox:checked'))
+        .map(cb => parseInt(cb.dataset.gameId));
+    
+    if (selectedGameIds.length === 0) {
+        return;
+    }
+    
+    // Confirmation dialog
+    const gameWord = selectedGameIds.length === 1 ? 'game' : 'games';
+    if (!confirm(`Are you sure you want to remove ${selectedGameIds.length} ${gameWord} from history? This action cannot be undone.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/remove_games', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ game_ids: selectedGameIds })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            // Reload the page to show updated history
+            window.location.reload();
+        } else {
+            alert(result.error || 'Failed to remove games');
+        }
+    } catch (error) {
+        alert('Failed to remove games. Please try again.');
     }
 });
 
