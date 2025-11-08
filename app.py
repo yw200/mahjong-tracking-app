@@ -310,8 +310,84 @@ def delete_player(player_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/stats')
+def stats():
+    """Database statistics for all stored games (JSON)"""
+    db = get_db()
+    cursor = db.cursor()
+
+    cursor.execute('SELECT COUNT(*) FROM games')
+    total_games = cursor.fetchone()[0] or 0
+
+    # Fetch all games and compute per-player aggregates in Python
+    cursor.execute('SELECT * FROM games ORDER BY created_at DESC')
+    games = cursor.fetchall()
+    db.close()
+
+    # Aggregate structure:
+    # stats_by_player[name] = {
+    #   'appearances': int,
+    #   'total_points': float,
+    #   'pos_counts': [count1, count2, count3, count4]
+    # }
+    stats_by_player = {}
+
+    for game in games:
+        players_game = [
+            (game['player1_name'], game['player1_score'], game['player1_points']),
+            (game['player2_name'], game['player2_score'], game['player2_points']),
+            (game['player3_name'], game['player3_score'], game['player3_points']),
+            (game['player4_name'], game['player4_score'], game['player4_points']),
+        ]
+
+        # Determine finishing order by score (highest = 1st)
+        # If scores tie, ordering is deterministic by name fallback
+        players_sorted = sorted(players_game, key=lambda x: (x[1], x[0]), reverse=True)
+
+        for pos_idx, (name, score, points) in enumerate(players_sorted, start=1):
+            entry = stats_by_player.setdefault(name, {
+                'appearances': 0,
+                'total_points': 0.0,
+                'pos_counts': [0, 0, 0, 0]
+            })
+            entry['appearances'] += 1
+            entry['total_points'] += float(points)
+            if 1 <= pos_idx <= 4:
+                entry['pos_counts'][pos_idx - 1] += 1
+
+    # Build response list
+    players_stats = []
+    for name, entry in stats_by_player.items():
+        a = entry['appearances']
+        tp = entry['total_points']
+        p1, p2, p3, p4 = entry['pos_counts']
+        pos_summary = f"{p1}+{p2}+{p3}+{p4}={a}"
+        avg_position = round(((1 * p1) + (2 * p2) + (3 * p3) + (4 * p4)) / a, 2) if a else None
+        avg_points = round(tp / a, 1) if a else None
+
+        players_stats.append({
+            'name': name,
+            'total_points': round(tp, 1),
+            'appearances': a,
+            '1st': p1,
+            '2nd': p2,
+            '3rd': p3,
+            '4th': p4,
+            'position_summary': pos_summary,        # "1st+2nd+3rd+4th=#games"
+            'average_position': avg_position,
+            'average_points_per_game': avg_points
+        })
+
+    # Sort players by total_points descending
+    players_stats.sort(key=lambda x: x['total_points'], reverse=True)
+
+    return jsonify({
+        'total_games': total_games,
+        'players': players_stats
+    })
+
 if __name__ == '__main__':
     init_db()
     # Run on all interfaces so it's accessible externally
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=5001, debug=False)
 

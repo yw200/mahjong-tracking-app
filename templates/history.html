@@ -19,6 +19,9 @@
             <button id="remove-games-btn" class="btn btn-danger" disabled style="margin-top: 10px;">
                 🗑️ Remove Selected Games from History
             </button>
+            <button id="show-stats-btn" class="btn btn-primary" style="margin-top: 10px;">
+                📈 Game Stats
+            </button>
         </div>
         
         <div id="totals-container" style="display: none; margin-bottom: 20px;">
@@ -34,7 +37,27 @@
                 </tbody>
             </table>
         </div>
-        
+        <div id="stats-container" style="display:none; margin-bottom:20px; background:#fff; padding:16px; border-radius:8px;">
+            <h2 style="color:#333; margin-bottom:12px;">Database Statistics</h2>
+            <div id="stats-summary" style="margin-bottom:12px; color:#555;"></div>
+            <table class="results-table" id="stats-table" style="width:100%; display:none;">
+                <thead>
+                    <tr>
+                        <th>Player</th>
+                        <th>1st</th>
+                        <th>2nd</th>
+                        <th>3rd</th>
+                        <th>4th</th>
+                        <th>Games</th>
+                        <th>Total Points</th>
+                        <th>Avg Points</th>
+                        <th>Avg Pos</th>
+                    </tr>
+                </thead>
+                <tbody id="stats-body"></tbody>
+            </table>
+        </div>
+
         {% for game in games %}
         <div class="game-card" style="background: #f8f9fa; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
@@ -82,6 +105,11 @@
 const checkboxes = document.querySelectorAll('.game-checkbox');
 const calculateBtn = document.getElementById('calculate-totals-btn');
 const removeBtn = document.getElementById('remove-games-btn');
+const showStatsBtn = document.getElementById('show-stats-btn');
+const statsContainer = document.getElementById('stats-container');
+const statsBody = document.getElementById('stats-body');
+const statsTable = document.getElementById('stats-table');
+const statsSummary = document.getElementById('stats-summary');
 
 checkboxes.forEach(checkbox => {
     checkbox.addEventListener('change', updateButtons);
@@ -180,6 +208,47 @@ function displayTotals(totals) {
     
     // Scroll to totals
     container.scrollIntoView({ behavior: 'smooth' });
+}
+
+if (showStatsBtn) {
+    showStatsBtn.addEventListener('click', async () => {
+        showStatsBtn.disabled = true;
+        showStatsBtn.textContent = 'Loading…';
+        try {
+            const res = await fetch('/stats');
+            if (!res.ok) throw new Error('Failed to fetch stats');
+            const data = await res.json();
+
+            statsSummary.textContent = `Total games: ${data.total_games || 0}`;
+            statsBody.innerHTML = '';
+
+            (data.players || []).forEach(p => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${p.name}</strong></td>
+                    <td>${p['1st'] || 0}</td>
+                    <td>${p['2nd'] || 0}</td>
+                    <td>${p['3rd'] || 0}</td>
+                    <td>${p['4th'] || 0}</td>
+                    <td>${p.appearances}</td>
+                    <td class="${p.total_points >= 0 ? 'positive' : 'negative'}">${p.total_points >= 0 ? '+' : ''}${p.total_points}</td>
+                    <td>${p.average_points_per_game !== null ? (p.average_points_per_game >=0 ? '+' : '') + p.average_points_per_game : '-'}</td>
+                    <td>${p.average_position !== null ? p.average_position : '-'}</td>
+                `;
+                statsBody.appendChild(tr);
+            });
+
+            statsTable.style.display = (data.players && data.players.length) ? '' : 'none';
+            statsContainer.style.display = 'block';
+            statsContainer.scrollIntoView({ behavior: 'smooth' });
+        } catch (err) {
+            console.error(err);
+            alert('Unable to load stats.');
+        } finally {
+            showStatsBtn.disabled = false;
+            showStatsBtn.textContent = '📈 Game Stats';
+        }
+    });
 }
 </script>
 {% endblock %}
